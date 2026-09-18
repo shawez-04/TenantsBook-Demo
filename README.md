@@ -65,22 +65,22 @@ Curious about how the backend is structured? Read the detailed [Architecture Doc
 *(Note: Below are a few select screens from the application)*
 
 ### Landlord Dashboard
-![Dashboard](assets/screenshots/tenantBook-screen1.png)
+![Dashboard](assets/screenshots/tenantBook-screen19.png)
 
 ### Properties Overview
-![Properties](assets/screenshots/tenantBook-screen2.png)
+![Properties](assets/screenshots/tenantBook-screen18.png)
 
 ### Unit Details
-![Unit Details](assets/screenshots/tenantBook-screen3.png)
+![Unit Details](assets/screenshots/tenantBook-screen17.png)
 
-### Lease Management
-![Lease Management](assets/screenshots/tenantBook-screen4.png)
+### Tenants Management
+![Lease Management](assets/screenshots/tenantBook-screen16.png)
 
 ### Automated Invoicing
-![Invoicing](assets/screenshots/tenantBook-screen5.png)
+![Invoicing](assets/screenshots/tenantBook-screen15.png)
 
 ### Maintenance Tickets
-![Maintenance](assets/screenshots/tenantBook-screen6.png)
+![Maintenance](assets/screenshots/tenantBook-screen11.png)
 
 </details>
 
