@@ -10,10 +10,16 @@
   <a href="#overview">Overview</a> •
   <a href="#key-features">Key Features</a> •
   <a href="#tech-stack">Tech Stack</a> •
+  <a href="#architecture">Architecture</a> •
   <a href="#screenshots">Screenshots</a>
 </p>
 
 ---
+
+## 🔗 Live Demo
+**Website:** [https://tenantsbook.in/](https://tenantsbook.in/)
+
+*(Note: If testing, please be respectful of the demo environment.)*
 
 ## Overview
 
@@ -44,6 +50,9 @@
 - **Database:** PostgreSQL
 - **PDF Generation:** QuestPDF (for Pixel-perfect Agreements and Invoices)
 - **Architecture:** Clean Architecture with Repository Pattern
+
+## Architecture
+Curious about how the backend is structured? Read the detailed [Architecture Documentation](./ARCHITECTURE.md) covering Dependency Injection, Layer Responsibilities, and our custom cross-region Performance Notes.
 
 ---
 
@@ -76,6 +85,11 @@
 </details>
 
 ---
+
+## Contact
+**Developer:** Shawez  
+**Email:** shawez.dev@gmail.com  
+**LinkedIn / GitHub:** Feel free to reach out via email for access to the complete source code or to discuss the architecture in depth!
 
 <p align="center">
   <i>Developed with ❤️ for modern property management.</i>
