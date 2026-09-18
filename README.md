@@ -23,20 +23,27 @@
 
 ## Overview
 
-**TenantsBook** is a professional, end-to-end property management system designed to streamline the rental experience for both landlords and tenants. It replaces scattered spreadsheets and informal communication with a centralized dashboard for lease tracking, automated financial invoicing, and maintenance requests.
+**TenantsBook** is a professional, end-to-end property management system designed to streamline the rental experience for both landlords and tenants. Built with a focus on scalable backend architecture, it replaces scattered spreadsheets with a centralized, multi-tenant ecosystem for lease tracking, automated financial invoicing, and stateful maintenance management.
 
 > **Note:** This repository is a public showcase / demo repository. The source code for the proprietary backend and frontend is maintained in private repositories. 
 
 ## Key Features
 
-- **Role-Based Portals:** Dedicated experiences for Landlords and Tenants with strict row-level security and access control.
-- **Property & Unit Management:** Track portfolios, unit occupancy, and listing inquiries in real-time.
-- **Automated Financials:** Generate legally-structured Lease Agreements and automated monthly Rent Invoices in professional PDF formats.
-- **Maintenance Tracking:** Tenants can raise maintenance tickets; landlords can assign, track, and close them with full state management.
-- **Analytics Dashboard:** Visual insights into monthly revenue, pending payments, occupancy rates, and expense tracking.
-- **Document Management:** Secure cloud storage integration for lease documents, KYC proofs, and property images.
+- **Multi-Tenant Architecture:** Secure role-based access control (RBAC) isolating Landlord and Tenant contexts via strict Entity Framework query filters and Row-Level Security principles.
+- **Automated Financial Engine:** Background logic dynamically evaluates lease parameters (lock-in periods, notice periods) to generate automated monthly Rent Invoices and calculate dynamic late fees.
+- **Dynamic Document Generation:** Service-layer generation of legally-structured, professional Lease Agreements and Rent Invoices rendered directly to memory streams.
+- **Stateful Ticket Management:** Robust state machine for maintenance requests, enforcing valid entity state transitions (Open → Assigned → Closed) across secure endpoints.
+- **High-Performance Analytics:** Dashboard metrics powered by conditional SQL aggregation and caching, drastically minimizing database round-trips for real-time data visualization.
+- **Secure Cloud Storage:** Decoupled document management service integrating secure file streaming for KYC proofs, signed leases, and property assets.
 
 ## Tech Stack
+
+### Backend
+- **Framework:** .NET 10 Web API (C#)
+- **Architecture:** Clean Architecture, Interface-based Dependency Inversion, Repository Pattern
+- **ORM:** Entity Framework Core (Code-First)
+- **Database:** PostgreSQL (with Npgsql)
+- **Integrations:** Brevo API (Transactional Emails), Supabase Auth (JWKS-based JWT validation)
 
 ### Frontend
 - **Framework:** React 19 + Vite
@@ -44,15 +51,8 @@
 - **State & UI:** Modern React Patterns, Custom UI components, and Responsive Design
 - **Hosting:** Cloudflare Pages
 
-### Backend
-- **Framework:** .NET 10 Web API (C#)
-- **ORM:** Entity Framework Core
-- **Database:** PostgreSQL
-- **PDF Generation:** QuestPDF (for Pixel-perfect Agreements and Invoices)
-- **Architecture:** Clean Architecture with Repository Pattern
-
 ## Architecture
-Curious about how the backend is structured? Read the detailed [Architecture Documentation](./ARCHITECTURE.md) covering Dependency Injection, Layer Responsibilities, and our custom cross-region Performance Notes.
+Curious about how the backend is structured? Read the detailed [Architecture Documentation](./ARCHITECTURE.md) covering Dependency Injection, Domain-Driven Error Handling, our Notification Engine, and custom cross-region Performance Mitigations.
 
 ---
 
@@ -89,8 +89,8 @@ Curious about how the backend is structured? Read the detailed [Architecture Doc
 ## Contact
 **Developer:** Shawez  
 **Email:** shawez.dev@gmail.com  
-**LinkedIn / GitHub:** Feel free to reach out via email for access to the complete source code or to discuss the architecture in depth!
+**LinkedIn / GitHub:** Feel free to reach out via email for access to the complete source code or to discuss the backend system design in depth!
 
 <p align="center">
-  <i>Developed with ❤️ for modern property management.</i>
+  <i>Engineered with ❤️ for modern property management.</i>
 </p>

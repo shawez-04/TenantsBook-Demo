@@ -1,13 +1,13 @@
 # Architecture
 
 ## Solution Structure
-The solution contains 5 .NET projects in a layered architecture utilizing interface-based dependency inversion:
+The system is divided into a 5-project layered architecture, strongly adhering to Clean Architecture principles and interface-based dependency inversion to decouple domain logic from infrastructure concerns:
 
-1. **TenantBook.WebApi** — ASP.NET Core host with controllers, middleware, and `Program.cs`.
-2. **TenantBook.WebApi.BusinessServices** — Service implementations containing core business logic.
-3. **TenantBook.WebApi.Interfaces** — Service contracts (interfaces) for dependency inversion.
-4. **TenantBook.WebApi.Common** — Shared DTOs, constants, and enums.
-5. **TenantBook.Data** — EF Core `DbContext`, entity models, migrations, and repositories.
+1. **TenantBook.WebApi** — ASP.NET Core host containing HTTP controllers, global middleware, and request pipeline configurations.
+2. **TenantBook.WebApi.BusinessServices** — Core domain logic, service implementations, and state management.
+3. **TenantBook.WebApi.Interfaces** — Service contracts ensuring strict decoupling between the web layer, business logic, and data access.
+4. **TenantBook.WebApi.Common** — Shared DTOs, application constants, and domain enums.
+5. **TenantBook.Data** — Persistence layer encapsulating the EF Core `DbContext`, entity definitions, migrations, and generic/specialized repositories.
 
 ```mermaid
 flowchart TD
@@ -30,63 +30,56 @@ flowchart TD
 ```
 
 ## Request Pipeline
-The HTTP request lifecycle goes through the following middleware in `Program.cs`, in order:
-1. `ExceptionMiddleware`
-2. `SerilogRequestLogging`
-3. HTTPS Redirection
-4. Static Files (wwwroot)
-5. CORS (`AllowFrontend` policy)
-6. `RateLimiter`
-7. Authentication
-8. Authorization
-9. Health Checks
-10. Controllers
+The HTTP lifecycle is strictly governed by a sequence of highly optimized middleware configured in `Program.cs`:
+1. `ExceptionMiddleware` (Global Domain Exception Mapping)
+2. `SerilogRequestLogging` (Structured telemetry)
+3. HTTPS Redirection & Static Files (wwwroot)
+4. CORS (`AllowFrontend` policy strictly binding allowed origins)
+5. `RateLimiter` (Protecting against abuse)
+6. Authentication & Authorization (JWKS validation & Role Claims)
+7. Health Checks
+8. Endpoint Routing (Controllers)
 
 ## Dependency Injection
-Domain services and repositories are strictly registered with a Scoped lifetime. Key registrations include:
+The IoC container manages domain services and repositories utilizing Scoped lifetimes to guarantee DbContext isolation per HTTP request:
 
-- **Core/Domain Services**: `ICurrentUserService`, `IPropertyService`, `ITenantService`, `ILeaseService`, `IInvoiceService`, `IMaintenanceService`, `IDashboardService`, `IPdfGenerationService`, `IDocumentService`, `IAnalyticsService`
-- **External Services**: `IAuthService` mapped to `SupabaseAuthService` (configured with `AddHttpClient`).
-- **Caching**: `AuthIdentityCache` (singleton) caches Supabase UID → local identity resolution for JWT claims enrichment, so authenticated requests don't hit the database per request. `ICacheService` (backed by `IDistributedCache`) provides short-lived response caching (e.g. 60s dashboard stats).
-- **Repositories**: Generic `IBaseRepository<T>` mapped to `BaseRepository<T>`, alongside specialized entity repositories like `IPropertyRepository` and `ILandlordRepository`.
+- **Domain Services**: `ICurrentUserService`, `ILeaseService`, `IInvoiceService`, `IPdfGenerationService`, `IDashboardService`, etc.
+- **Identity Resolution**: `IAuthService` mapped to an underlying `SupabaseAuthService` using an optimized `AddHttpClient` factory. 
+- **Caching Mechanisms**: `AuthIdentityCache` (Singleton) prevents database hammering by caching Supabase UID → local entity resolution for 10 minutes. This drastically reduces DB overhead per authenticated request. `ICacheService` (backed by `IDistributedCache`) serves transient reads (e.g., aggregating dashboard statistics).
+- **Persistence**: Generic `IBaseRepository<T>` and specialized repositories abstract EF Core from the business layer.
 - **Database**: `TenantBookDbContext` connecting to PostgreSQL via Npgsql.
-- **Infrastructure**: Serilog for structured logging and Rate Limiting configurations.
 
-### Performance Notes (cross-region deployment)
-The API and database run in different regions (Render Singapore ↔ Supabase Seoul), so every query round trip costs ~80ms of network latency. Mitigations in place:
-- JWT identity resolution cached in memory (`AuthIdentityCache`) — one DB hit per user per 10 minutes instead of per request; invalidated whenever a Supabase UID is linked to a new local record.
-- `landlords.auth_provider_uid` and `tenants.auth_provider_uid` indexes.
-- Dashboard stats: query count collapsed via conditional aggregation (18 round trips → 11), all `AsNoTracking()`, response cached 60s per landlord. Queries run sequentially — the scoped DbContext is not thread-safe.
-- Npgsql `Minimum Pool Size=3` keeps warm connections after idle.
+### Performance Notes (Cross-Region Tuning)
+The API and database currently run in distinct regions (Render Singapore ↔ Supabase Seoul), inherently creating ~80ms of network latency per query. To mitigate latency, the backend employs:
+- **Aggressive Identity Caching**: Identity resolution is kept in memory. The system makes one DB hit per user per 10 minutes instead of intercepting every request.
+- **Strategic Indexing**: Highly-queried lookup columns (`auth_provider_uid` on both Landlords and Tenants) are explicitly indexed.
+- **Query Collapsing**: Complex dashboard aggregations were optimized using conditional aggregation, dropping 18 sequential round trips down to just 11. All heavy read queries explicitly use `.AsNoTracking()` to bypass EF Core's change tracker overhead.
+- **Connection Pooling**: Npgsql is tuned with `Minimum Pool Size=3` to retain warm connections and bypass TCP handshake delays during idle periods.
 
 ## Layer Responsibilities
 
-- **Controllers**: Responsible for HTTP routing, request validation, delegation to business services, and logging.
-- **Business Services**: Enforce business logic, map between Domain Entities and DTOs, and handle domain-specific exceptions. Includes the Notification Service (`INotificationService` / `IEmailProvider`) for handling automated email reminders via SMTP.
-- **Repositories**: Handle data access using a base `BaseRepository<T>` implementation along with specialized repos. Queries are automatically isolated by global filters.
-- **DbContext**: Configures EF Core. Handles global query filters for multi-tenancy, soft delete logic (`IsDeleted`), automatic stamping of `LandlordId` on creation, and converting entity properties to Postgres `snake_case` conventions.
+- **Controllers**: Thin wrappers responsible purely for HTTP routing, request payload validation, and delegation to the Business Services layer.
+- **Business Services**: The heart of the application. Enforces domain rules, maps Entities to DTOs, manages transactions, and deliberately throws specific custom Service Exceptions on business rule violations.
+- **Repositories**: Isolates EF Core syntax from the service layer. Employs global query filters to silently enforce multi-tenancy rules and soft-delete (`IsDeleted`) logic.
+- **DbContext**: Configures EF Core's Fluent API. Automatically injects standard audit trails (CreatedAt, UpdatedAt) and multi-tenant keys (`LandlordId`) transparently during `SaveChanges()`.
 
 ## Error Handling
-Global error handling is centralized in `ExceptionMiddleware.cs`. It maps domain and database exceptions into predictable HTTP responses:
-- **Postgres 23505 (Unique Violation)**: Returns `400 Bad Request`. Specifically handles cases like duplicate tenant phone numbers.
-- **`InvalidOperationException` / `ArgumentException`**: Returns `400 Bad Request`.
-- **Other Unhandled Exceptions**: Defaults to `500 Internal Server Error`.
+The application completely abstracts stack traces and framework errors from the client. Global error handling is centralized in `ExceptionMiddleware.cs`, which intercepts and maps exceptions to semantic HTTP responses:
 
-## Frontend Integration
-The frontend is built using React 19 with Vite, TypeScript, Axios, and Recharts.
-- **Communication**: Interacts with the backend via REST.
-- **Authentication**: Utilizes Supabase Auth with JWKS-based JWT validation. The token is passed via the `Authorization` header. The backend intercepts the token and enriches the claims identity with internal system IDs (`landlord_id` or `tenant_id`) based on the unique Supabase `sub` claim.
+- **Custom Service/Domain Exceptions**: The business layer explicitly throws custom exceptions (e.g., `ValidationException`, `NotFoundException`, `ConflictException`, `BusinessRuleViolationException`). The middleware maps these directly to `400 Bad Request`, `404 Not Found`, or `422 Unprocessable Entity`—keeping domain logic entirely separate from HTTP concerns.
+- **Postgres 23505 (Unique Violation)**: DbUpdateExceptions are intercepted. Unique constraint violations (e.g., duplicate tenant phone numbers or emails) are elegantly mapped to a `409 Conflict` or descriptive `400 Bad Request`.
+- **Unhandled Exceptions**: Any unexpected faults default to a sanitized `500 Internal Server Error`, while the full exception and stack trace are securely logged to Serilog for debugging.
 
-## Notification Engine (Email, SMS, WhatsApp)
+## Notification Engine (Transactional Emails)
 
-TenantBook utilizes an extensible Notification Engine designed around the **Strategy Pattern** to handle asynchronous communications (Invoices, Welcome Emails, Maintenance Updates).
+TenantBook utilizes an extensible, decoupled Notification Engine designed around the **Strategy Pattern** to handle asynchronous communications such as Rent Invoices and Welcome Emails.
 
 ### Structure
-- **`INotificationService`**: The high-level business orchestrator. It exposes strongly-typed domain methods like `SendInvoiceNotificationAsync(tenant, invoice, pdf)`.
-- **`IEmailProvider`**: The low-level transport interface.
-- **`SmtpEmailProvider`**: An implementation of `IEmailProvider` using `MailKit`.
+- **`INotificationService`**: The business orchestrator. It exposes strongly-typed domain methods (e.g., `SendRentReminderNotificationAsync(tenant, invoice)`) without needing to know *how* the message is sent.
+- **`IEmailProvider`**: The transport contract.
+- **`BrevoEmailProvider`**: An implementation of `IEmailProvider` that integrates with the **Brevo (formerly Sendinblue) transactional API**. 
 
-### Robustness & Logging
-Network connections to SMTP servers are notoriously fragile. The `SmtpEmailProvider` is hardened with:
-- **Exponential Backoff & Retries**: Automatically retries sending 3 times with increasing delays if the SMTP server drops the connection.
-- **Rich Structured Logging**: Tracks exact attempt numbers, subjects, and reasons for failure through Serilog.
+### API Integration & Robustness
+Because network integrations are inherently fragile, the API-driven `BrevoEmailProvider` is hardened with:
+- **Resilience Policies**: Configured with transient fault handling (exponential backoff) via HTTP client policies to ensure emails are eventually delivered even if the third-party API hiccups.
+- **Structured Telemetry**: Every email dispatch is securely tracked in Serilog, capturing exact attempt metadata and graceful degradation paths upon failure.
